@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# IDE/editor config files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and temp files
+*.log
+*.sqlite3
+*.db
+
+# Docker files (optional, if you want to exclude local Docker files)
+Dockerfile*
+docker-compose.yml
+
+# Git files
+.git/
+.gitignore
+
+# Python test cache
+.pytest_cache/
+.coverage
+htmlcov/
