@@ -6,7 +6,7 @@ from app.redis_client import redis_client
 
 DATABASE_URL = f"postgresql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_DATABASE')}"
 
-def update_answer_points(coding_answer_id, result):
+def update_answer_points(coding_answer_id, result, answer_id):
     logger.info(f"🛠️ Entering update_answer_points for {coding_answer_id}")
     logger.info(f"Raw result: {result}")
 
@@ -20,6 +20,10 @@ def update_answer_points(coding_answer_id, result):
         answer_syntax_points = points['syntax']
         answer_runtime_points = points['runtime']
         answer_test_case_points = points['testcase']
+
+        total_points = int(points['syntax']) + int(points['runtime']) + int(points['testcase'])
+        is_answered= True
+        is_correct = result['success']
 
         status = 'checked'
         with psycopg.connect(DATABASE_URL) as conn:
@@ -47,7 +51,22 @@ def update_answer_points(coding_answer_id, result):
                         coding_answer_id
                     )
                 )
-                logger.info(f"✅ Updated student_answers for ID {coding_answer_id}")
+                cur.execute(
+                    """
+                    UPDATE student_answers
+                    SET points = %s,
+                        is_answered = %s,
+                        is_correct = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        total_points,
+                        is_answered,
+                        is_correct,
+                        answer_id
+                    )
+                )
+                logger.info(f"✅ Updated coding_answer for ID {coding_answer_id} and answer_id for {answer_id}")
             conn.commit()
             redis_client.hset("checked_code", coding_answer_id, "checked")
     except Exception as e:

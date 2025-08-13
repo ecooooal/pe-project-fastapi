@@ -23,6 +23,8 @@ def process_user_code(coding_answer_id, fields):
     redis_client.hset("checked_code", coding_answer_id, "checking")
 
     language = fields['language']
+    answer_id = fields['answer_id']
+    logger.info(f"Extract coding_id and answer_id {coding_answer_id}: {answer_id}")
     data = fields['data']
     data['request_action'] = 'check'
     logger.info(f"Extract language and data {language}: {data}")
@@ -46,7 +48,7 @@ def process_user_code(coding_answer_id, fields):
         logger.info(f"results : {result}")
         logger.info(LOG_SEPARATOR)
 
-        update_answer_points(coding_answer_id, result)
+        update_answer_points(coding_answer_id, result, answer_id)
 
         # 5. Notify SSE
         # notifier.notify(str(coding_answer_id), result)
