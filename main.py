@@ -7,9 +7,7 @@ import json
 import redis.asyncio as redis  # use asyncio Redis client for async support
 from app import worker
 from app.logger import logger
-
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")  
-redis_client = redis.Redis(host=REDIS_HOST, port=6379, db=0)
+from app.redis_client import redis_client
 
 process = []
 
@@ -17,7 +15,9 @@ process = []
 async def lifespan(app: FastAPI):
     # Add initial data on startup
     worker.start_redis_worker()
+
     yield
+
     # Close Redis connection on shutdown
     await redis_client.close()
 
