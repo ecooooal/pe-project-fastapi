@@ -8,16 +8,14 @@ import redis.asyncio as redis  # use asyncio Redis client for async support
 from app import worker
 from app.logger import logger
 
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")  # default localhost fallback
-
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")  
 redis_client = redis.Redis(host=REDIS_HOST, port=6379, db=0)
+
 process = []
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Add initial data on startup
-    logger.info("🚀 Starting FastAPI")
-    print("🚀 Starting FastAPI")
     worker.start_redis_worker()
     yield
     # Close Redis connection on shutdown
