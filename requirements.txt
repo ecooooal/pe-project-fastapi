@@ -47,6 +47,8 @@ pickleshare==0.7.5
 pipreqs==0.5.0
 platformdirs==4.3.8
 prompt_toolkit==3.0.51
+psycopg==3.2.9
+psycopg-binary==3.2.9
 ptyprocess==0.7.0
 pure_eval==0.2.3
 pydantic==2.11.7

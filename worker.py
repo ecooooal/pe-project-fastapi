@@ -5,7 +5,7 @@ import json
 import threading
 import os
 from app.logger import logger
-from app.statements import statements
+from app.statements import update_answer_points
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 redis_client = redis.Redis(host=REDIS_HOST, port=6379, db=0)
@@ -40,7 +40,7 @@ def process_user_code(answer_id, fields):
         logger.info(f"results : {result}")
         logger.info(LOG_SEPARATOR)
 
-        statements.update_answer_points(answer_id, result)
+        update_answer_points(answer_id, result)
         
         redis_client.hset("checked_code", answer_id, "checked")
 
@@ -83,7 +83,7 @@ def listen_forever():
 
 def start_redis_worker():
     try:
-        redis_client.xgroup_create(streams=STREAM, groupname=GROUP, id='$', mkstream=True)
+        redis_client.xgroup_create(name=STREAM, groupname=GROUP, id='0', mkstream=True)
     except redis.exceptions.ResponseError as e:
         if "BUSYGROUP" in str(e):
             pass
