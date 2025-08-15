@@ -5,13 +5,20 @@ import json
 import threading
 import os
 from app.logger import logger
-from app.statements import update_answer_points
+from app.statements import update_answer_points, update_exam_record
 from app.redis_client import redis_client
 
 LOG_SEPARATOR = "-" * 80
 
-STREAM = "code_checker"
-GROUP = "async_code_checker"
+STUDENT_CODE_ANSWER_STREAM = "code_checker"
+STUDENT_CODE_ANSWER_GROUP = "async_code_checker"
+STUDENT_CODE_ANSWER_CONSUMER = "checker-1"
+
+STUDENT_CODE_ANSWER_UPDATE_HASH = "checked_code"
+CODE_ANSWER_CHECKING = "checking"
+CODE_ANSWER_CHECKED = "checked"
+CODE_ANSWER_ERROR = "error"
+
 LANGUAGE_EXECUTOR_URLS = {
     # 'python': "http://python-api:8090/execute" Not implemented yet,
     'java': "http://java-api:8090/execute",
@@ -20,17 +27,17 @@ LANGUAGE_EXECUTOR_URLS = {
 
 
 def process_user_code(coding_answer_id, fields):
-    redis_client.hset("checked_code", coding_answer_id, "checking")
+    redis_client.hset(STUDENT_CODE_ANSWER_UPDATE_HASH, coding_answer_id, CODE_ANSWER_CHECKING)
 
     language = fields['language']
     answer_id = fields['answer_id']
-    logger.info(f"Extract coding_id and answer_id {coding_answer_id}: {answer_id}")
+
     data = fields['data']
     data['request_action'] = 'check'
-    logger.info(f"Extract language and data {language}: {data}")
 
     try:
-        logger.info("executing to language executor")
+        logger.info(LOG_SEPARATOR)
+        logger.info("Executing to language executor")
         logger.info(f"This is the fields to send in JSON {data}")
 
         language_executor_url = LANGUAGE_EXECUTOR_URLS.get(language)
@@ -49,22 +56,19 @@ def process_user_code(coding_answer_id, fields):
         logger.info(LOG_SEPARATOR)
 
         update_answer_points(coding_answer_id, result, answer_id)
-
-        # 5. Notify SSE
-        # notifier.notify(str(coding_answer_id), result)
+        redis_client.hset(STUDENT_CODE_ANSWER_UPDATE_HASH, coding_answer_id, CODE_ANSWER_CHECKED)
 
     except Exception as e:
         logger.exception(f"[Worker Error] Processing {coding_answer_id} failed")
-        redis_client.hset("checked_code", coding_answer_id, "error")
 
 def listen_forever():
     print("Worker started...")
     while True:
         try:
             user_submitted_codes = redis_client.xreadgroup(
-                groupname=GROUP,
-                consumername="worker-1",  
-                streams={STREAM: ">"},   
+                groupname=STUDENT_CODE_ANSWER_GROUP,
+                consumername=STUDENT_CODE_ANSWER_CONSUMER,  
+                streams={STUDENT_CODE_ANSWER_STREAM: ">"},   
                 block=0
             )
 
@@ -73,25 +77,34 @@ def listen_forever():
                     for message_id, fields in messages:
 
                         try:
+                            logger.info(LOG_SEPARATOR)
+                            logger.info(f"CHECKING USER CODE")
                             raw_json = fields[b'data'].decode()
                             fields_json = json.loads(raw_json)
-
+                            student_paper_id = fields_json[0]['student_paper_id']
+                            logger.info(f"Checking paper {student_paper_id}")
+                            
                             for item in fields_json:
                                 coding_answer_id = str(item["coding_answer_id"])
                                 process_user_code(coding_answer_id, item)
+                            
+                            redis_client.xack(STUDENT_CODE_ANSWER_STREAM, STUDENT_CODE_ANSWER_GROUP, message_id)
+                            logger.info(f"DONE CHECKING USER CODE")
+
+                            logger.info(LOG_SEPARATOR)
+                            update_exam_record(student_paper_id)
+                            logger.info(f"DONE UPDATING USER EXAM RECORD")
 
                         except Exception as e:
-                            print(f"[Parse Error] Message {message_id}: {e}")
-
-                        redis_client.xack(STREAM, GROUP, message_id)
+                           logger.error(f"[Error] Message {message_id}: {e}")
 
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
             time.sleep(1)   
 
 def start_redis_worker():
     try:
-        redis_client.xgroup_create(name=STREAM, groupname=GROUP, id='0', mkstream=True)
+        redis_client.xgroup_create(name=STUDENT_CODE_ANSWER_STREAM, groupname=STUDENT_CODE_ANSWER_GROUP, id='0', mkstream=True)
     except redis.exceptions.ResponseError as e:
         if "BUSYGROUP" in str(e):
             pass
