@@ -56,7 +56,6 @@ def process_user_code(coding_answer_id, fields):
         logger.info(LOG_SEPARATOR)
 
         update_answer_points(coding_answer_id, result, answer_id)
-        redis_client.hset(STUDENT_CODE_ANSWER_UPDATE_HASH, coding_answer_id, CODE_ANSWER_CHECKED)
 
     except Exception as e:
         logger.exception(f"[Worker Error] Processing {coding_answer_id} failed")

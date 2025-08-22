@@ -11,6 +11,7 @@ STUDENT_CODE_ANSWER_UPDATE_HASH = "checked_code"
 CODE_ANSWER_CHECKED = "checked"
 
 def update_answer_points(coding_answer_id, result, answer_id):
+    # update student points for code answers and total points
     logger.info(f"🛠️ Entering update_answer_points for {coding_answer_id}")
     logger.info(f"Raw result: {result}")
 
@@ -83,6 +84,7 @@ def update_answer_points(coding_answer_id, result, answer_id):
         logger.exception(f"❌ update_answer_points failed for ID {coding_answer_id} because {e}")
      
 def update_exam_record(student_paper_id):
+    # update student exam record after grading coding answer
     logger.info(f"🛠️ Updating Exam Record for paper {student_paper_id}")
 
     get_answers_by_subjects_query = """
@@ -194,3 +196,5 @@ def get_exam_record_status(score_obtained: int, max_score: int) -> str:
         return "pass"
     else:
         return "more_review"
+
+

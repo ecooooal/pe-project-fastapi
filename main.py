@@ -1,12 +1,8 @@
 from typing import Union
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from redis import Redis
-import os
 import json
-import redis.asyncio as redis  # use asyncio Redis client for async support
 from app import worker
-from app.logger import logger
 from app.redis_client import redis_client
 
 process = []
@@ -22,6 +18,8 @@ async def lifespan(app: FastAPI):
     await redis_client.close()
 
 app = FastAPI(lifespan=lifespan)
+
+# app.include_router(dashboard.router, prefix="/api/dashboard")
 
 
 @app.get("/")
