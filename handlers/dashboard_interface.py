@@ -3,8 +3,11 @@ from abc import ABC, abstractmethod
 from typing import List
 
 class Context():
-    def __init__(self, strategy: Strategy) -> None:
+    def __init__(self, strategy: Strategy, id_context=None) -> None:
         self._strategy = strategy
+        self.id_context = id_context
+        if hasattr(self._strategy, 'id_context'):
+            self._strategy.id_context = id_context
 
     @property
     def strategy(self) -> Strategy:
@@ -14,10 +17,11 @@ class Context():
     def strategy(self, strategy: Strategy) -> None:
         self._strategy = strategy
 
-    def do_some_business_logic(self, redis_key: str) -> None:
+    def do_business_logic(self) -> None:
         print("Context: Getting data using the strategy (Redis-driven)")
-        result = self._strategy.do_algorithm(redis_key)
+        result = self._strategy.do_algorithm()
         print(result)
+        return result
 
 class Strategy(ABC):
     """
@@ -29,11 +33,11 @@ class Strategy(ABC):
     """
 
     @abstractmethod
-    def do_algorithm(self, data: List):
+    def do_algorithm(self):
         pass
 
     @abstractmethod
-    def validate(self) -> bool:
+    def validate(self, redis_key: str) -> bool:
         pass
 
     @abstractmethod
@@ -42,8 +46,5 @@ class Strategy(ABC):
 
     @abstractmethod
     def get_cached_data(self, redis_key:str) -> dict:
-        # get data from redis using the redis_key
-        # put it inside dictionary 
-        # return the data
         pass
 

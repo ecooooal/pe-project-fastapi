@@ -1,16 +1,9 @@
 from fastapi import APIRouter
-from app.redis_client import redis_client
-
+from handlers.dashboard_strategy import GetExamDashboardCache, GetCourseDashboardCache
+from handlers.dashboard_interface import Context
 router = APIRouter()
 
-dashboard_registry = {
-    "system": DashboardHandler("dashboard:system"),
-    "exam": DashboardHandler("dashboard:exam"),
-    "course": DashboardHandler("dashboard:course"),
-}
-
 # Initial Load
-
 
 # System Section 
 @router.get("/load-system")
@@ -19,22 +12,28 @@ def initial_load():
     # if yes give that cached data
     # if not build it then give it
     # Data: Online users, online students, DB queries/sec, User request/sec, container health check, timeseries data
+    
     return {"none" : 0}
 
 # Exam Section
 @router.get("/load-exam")
-def initial_load():
+def initial_load_exam():
     # Check redis if it cached
     # if yes give that cached data
     # if not build it then give it
     # Data: Total exams count, published count, unpublished count, question group by exams, exams group by courses, exams to open this month
-    return {"none" : 0}
+    context = Context(GetExamDashboardCache())
+
+    
+    return context.do_business_logic()
 
 # Course Section
-@router.get("/load-course")
-def initial_load():
+@router.get("/load-course/{course_id}")
+def initial_load_course(course_id: int):
     # Check redis if it cached
     # if yes give that cached data
     # if not build it then give it
     # Data: Question count, subject count, topic count, exam count for this course, unused question count, reused question count, question group by subject/topic, exam group by reused question
-    return {"none" : 0}
+    context = Context(GetCourseDashboardCache(), course_id)
+
+    return context.do_business_logic()

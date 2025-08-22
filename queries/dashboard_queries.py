@@ -51,13 +51,13 @@ def get_exam_data():
                 exam_data['unpublished_count'] = fetch_single_value(cur, unpublished_count_query)
 
                 cur.execute(examination_date_query)
-                exam_data['examination_dates'] = cur.fetchall()
+                exam_data['examination_dates'] = [list(row) for row in cur.fetchall()]
 
                 cur.execute(question_by_exam_query)
-                exam_data['question_exams'] = cur.fetchall()
+                exam_data['question_exams'] = [list(row) for row in cur.fetchall()]
                 
                 cur.execute(exam_by_course_query)
-                exam_data['exam_courses'] = cur.fetchall()
+                exam_data['exam_courses'] = [list(row) for row in cur.fetchall()]
                 
         return exam_data
 
