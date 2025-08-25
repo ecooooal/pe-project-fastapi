@@ -1,6 +1,8 @@
 from fastapi import APIRouter
-from handlers.dashboard_strategy import GetExamDashboardCache, GetCourseDashboardCache
-from handlers.dashboard_interface import Context
+from app.handlers.dashboard_strategy import GetExamDashboardCache, GetCourseDashboardCache
+from app.handlers.dashboard_interface import Context
+from app.utils.logger import logger
+
 router = APIRouter()
 
 # Initial Load
@@ -23,7 +25,6 @@ def initial_load_exam():
     # if not build it then give it
     # Data: Total exams count, published count, unpublished count, question group by exams, exams group by courses, exams to open this month
     context = Context(GetExamDashboardCache())
-
     
     return context.do_business_logic()
 

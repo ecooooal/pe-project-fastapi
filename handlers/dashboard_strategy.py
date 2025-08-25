@@ -1,8 +1,9 @@
 import os
 import json
-from handlers.dashboard_interface import Context, Strategy
-from utils.redis_client import redis_client
-from queries.dashboard_queries import get_exam_data, get_course_data
+from app.handlers.dashboard_interface import Context, Strategy
+from app.utils.redis_client import redis_client
+from app.queries.dashboard_queries import get_exam_data, get_course_data
+from app.utils.logger import logger
 
 DATABASE_URL = f"postgresql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_DATABASE')}"
 
@@ -58,6 +59,9 @@ class GetExamDashboardCache(Strategy):
         return cached_data
         
 class GetCourseDashboardCache(Strategy):
+    def __init__(self):
+        self.id_context = None  # Add this attribute
+
     def do_algorithm(self) -> dict:
         redis_key = CACHE_KEYS['course']
         if self.validate(redis_key):
@@ -87,11 +91,11 @@ class GetCourseDashboardCache(Strategy):
             return json.loads(value)
         return None
 
-# def prepare_for_redis_hash(data: dict) -> dict:
-#     redis_data = {}
-#     for key, value in data.items():
-#         if isinstance(value, (list, dict)):
-#             redis_data[key] = json.dumps(value)
-#         else:
-#             redis_data[key] = str(value)
-#     return redis_data
+def prepare_for_redis_hash(data: dict) -> dict:
+    redis_data = {}
+    for key, value in data.items():
+        if isinstance(value, (list, dict)):
+            redis_data[key] = json.dumps(value)
+        else:
+            redis_data[key] = str(value)
+    return redis_data
