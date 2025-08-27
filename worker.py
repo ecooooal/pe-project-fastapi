@@ -4,7 +4,7 @@ import requests
 import json
 import threading
 import os
-from app.utils import logger
+from app.utils.logger import logger
 from app.statements import update_answer_points, update_exam_record
 from app.utils.redis_client import redis_client
 
@@ -98,7 +98,7 @@ def listen_forever():
                            logger.error(f"[Error] Message {message_id}: {e}")
 
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"Exception in listen_forever: {e}", exc_info=True)
             time.sleep(1)   
 
 def start_redis_worker():

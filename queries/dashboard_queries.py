@@ -10,6 +10,16 @@ DATABASE_URL = f"postgresql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD
 
 # exam queries
 
+def refresh_exam_data():
+    try:
+        with psycopg.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("REFRESH MATERIALIZED VIEW exam_stats_mv;")
+            conn.commit()  
+        logger.info("✅ Successfully refreshed exam_stats_mv materialized view.")
+    except Exception as e:
+        logger.exception(f"❌ Failed Refreshing Dashboard Exam Data because {e}")
+
 def get_exam_data():
     exam_data = {}
     
@@ -29,7 +39,8 @@ def get_exam_data():
     """ 
     question_by_exam_query ="""
         SELECT exam_id, exam_name, is_published, examination_date, question_count
-        FROM exam_stats_mv 
+        FROM exam_stats_mv
+        WHERE question_count > 0
         ORDER BY question_count ASC;
     """
     exam_by_course_query ="""
@@ -62,6 +73,28 @@ def get_exam_data():
         logger.exception(f"❌ Failed Getting Dashboard Exam Data because {e}")
     
 # course queries
+def get_all_course_id():
+    course_ids = []
+    try:
+        with psycopg.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT course_id FROM course_subject_topic_question_mv")
+                course_ids = [row[0] for row in cur.fetchall()]
+            return course_ids
+        logger.info("✅ Successfully refreshed course_subject_topic_question_mv materialized view.")
+    except Exception as e:
+        logger.exception(f"❌ Failed Refreshing Dashboard Course Data because {e}")
+
+def refresh_course_data():
+    try:
+        with psycopg.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("REFRESH MATERIALIZED VIEW course_subject_topic_question_mv;")
+            conn.commit()  
+        logger.info("✅ Successfully refreshed course_subject_topic_question_mv materialized view.")
+    except Exception as e:
+        logger.exception(f"❌ Failed Refreshing Dashboard Course Data because {e}")
+
 def get_course_data(course_id):
     course_data = {}
 

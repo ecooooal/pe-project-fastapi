@@ -37,6 +37,10 @@ class Strategy(ABC):
         pass
 
     @abstractmethod
+    def refresh(self):
+        pass
+
+    @abstractmethod
     def validate(self, redis_key: str) -> bool:
         pass
 
@@ -47,4 +51,5 @@ class Strategy(ABC):
     @abstractmethod
     def get_cached_data(self, redis_key:str) -> dict:
         pass
+
 

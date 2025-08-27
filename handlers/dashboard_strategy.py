@@ -2,7 +2,7 @@ import os
 import json
 from app.handlers.dashboard_interface import Context, Strategy
 from app.utils.redis_client import redis_client
-from app.queries.dashboard_queries import get_exam_data, get_course_data
+from app.queries.dashboard_queries import get_exam_data, get_course_data, refresh_exam_data, refresh_course_data, get_all_course_id
 from app.utils.logger import logger
 
 DATABASE_URL = f"postgresql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_DATABASE')}"
@@ -39,6 +39,11 @@ class GetExamDashboardCache(Strategy):
         else: 
             return self.build_key(redis_key)
     
+    def refresh(self) -> dict:
+        redis_key = CACHE_KEYS['exam']
+        refresh_exam_data()
+        self.build_key(redis_key)
+    
     def validate(self, redis_key) -> bool:
         return redis_client.exists(redis_key) > 0
 
@@ -69,6 +74,18 @@ class GetCourseDashboardCache(Strategy):
         else: 
             return self.build_key(redis_key)
         
+    def refresh(self):
+        refresh_course_data()
+        
+        course_ids = get_all_course_id()
+        updated_data = {}
+
+        for course_id in course_ids:
+            self.id_context = course_id
+            course_data = self.build_key(CACHE_KEYS['course'])
+            updated_data[course_id] = course_data
+
+    
     def validate(self, redis_key) -> bool:
         field = f"course:{self.id_context}"
         return redis_client.hexists(redis_key, field)

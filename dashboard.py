@@ -38,3 +38,16 @@ def initial_load_course(course_id: int):
     context = Context(GetCourseDashboardCache(), course_id)
 
     return context.do_business_logic()
+
+@router.get("/refresh")
+def refresh_dasboard():
+    # Check redis if it cached
+    # if yes give that cached data
+    # if not build it then give it
+    # Data: Question count, subject count, topic count, exam count for this course, unused question count, reused question count, question group by subject/topic, exam group by reused question
+    exam_context = Context(GetExamDashboardCache())
+    exam_context._strategy.refresh()
+    course_context = Context(GetCourseDashboardCache())
+    course_context._strategy.refresh()
+
+    return "refreshed"
