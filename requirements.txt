@@ -1,5 +1,6 @@
 annotated-types==0.7.0
 anyio==4.10.0
+APScheduler==3.11.0
 asttokens==3.0.0
 attrs==25.3.0
 backcall==0.2.0
@@ -79,6 +80,7 @@ traitlets==5.14.3
 typer==0.16.0
 typing-inspection==0.4.1
 typing_extensions==4.14.1
+tzlocal==5.3.1
 urllib3==2.5.0
 uvicorn==0.35.0
 uvloop==0.21.0

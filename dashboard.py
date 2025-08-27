@@ -1,11 +1,14 @@
 from fastapi import APIRouter
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from app.handlers.dashboard_strategy import GetExamDashboardCache, GetCourseDashboardCache
 from app.handlers.dashboard_interface import Context
 from app.utils.logger import logger
+from app.utils.redis_client import redis_client
 
 router = APIRouter()
-
-# Initial Load
+TIMER_KEY = 'dashboard:refresh_timer'
+INTERVAL_SECONDS = 600  # 10 minutes
 
 # System Section 
 @router.get("/load-system")
@@ -41,13 +44,43 @@ def initial_load_course(course_id: int):
 
 @router.get("/refresh")
 def refresh_dasboard():
-    # Check redis if it cached
-    # if yes give that cached data
-    # if not build it then give it
-    # Data: Question count, subject count, topic count, exam count for this course, unused question count, reused question count, question group by subject/topic, exam group by reused question
     exam_context = Context(GetExamDashboardCache())
     exam_context._strategy.refresh()
     course_context = Context(GetCourseDashboardCache())
     course_context._strategy.refresh()
 
     return "refreshed"
+
+
+def refresh_dashboard_job():
+    # Attempt to set the timer only if it doesn't exist
+    success = redis_client.set(TIMER_KEY, 'running', ex=INTERVAL_SECONDS, nx=True)
+
+    if success:
+        print("✅ Dashboard refresh started.")
+        exam_context = Context(GetExamDashboardCache())
+        exam_context._strategy.refresh()
+        course_context = Context(GetCourseDashboardCache())
+        course_context._strategy.refresh()
+        print(f"⏱️ Timer set. TTL is now {INTERVAL_SECONDS} seconds.")
+    else:
+        ttl = redis_client.ttl(TIMER_KEY)
+        if ttl > 0:
+            return(f"⏱️ {ttl} seconds left before next refresh.")
+
+
+@router.get("/timer")
+def get_timer_ttl():
+    success = redis_client.set(TIMER_KEY, 'running', ex=INTERVAL_SECONDS, nx=True)
+
+    if success:
+        print("✅ Dashboard refresh started.")
+        exam_context = Context(GetExamDashboardCache())
+        exam_context._strategy.refresh()
+        course_context = Context(GetCourseDashboardCache())
+        course_context._strategy.refresh()
+        print(f"⏱️ Timer set. TTL is now {INTERVAL_SECONDS} seconds.")
+    else:
+        ttl = redis_client.ttl(TIMER_KEY)
+        if ttl > 0:
+            return(f"⏱️ {ttl} seconds left before next refresh.")

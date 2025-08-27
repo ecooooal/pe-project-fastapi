@@ -114,7 +114,7 @@ def get_course_data(course_id):
         FROM course_subject_topic_question_mv
         WHERE course_id = %s
         GROUP BY subject_id, subject_name
-        ORDER BY subject_name;
+        ORDER BY question_count;
     """
     topic_query = """
         SELECT 
@@ -127,13 +127,14 @@ def get_course_data(course_id):
         FROM course_subject_topic_question_mv
         WHERE course_id = %s
         GROUP BY topic_id, topic_name
-        ORDER BY topic_name;
+        ORDER BY question_count;
     """
     question_type_query = """
-        select question_type, COUNT(question_id)
+        select question_type, COUNT(question_id) AS question_count
         from course_subject_topic_question_mv
         WHERE course_id = %s
-        group by question_type;
+        group by question_type
+        ORDER BY question_count;
     """
 
     exam_count_query =  """
@@ -167,7 +168,8 @@ def get_course_data(course_id):
         JOIN course_subject_topic_question_mv mv ON mv.question_id = q.id
         WHERE mv.course_id = %s
         GROUP BY q.id, q.name, q.question_type
-        HAVING COUNT(*) >= 2;
+        HAVING COUNT(*) >= 2
+        ORDER BY reused_count;
     """
 
     try:
