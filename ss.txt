@@ -59,12 +59,12 @@ def get_exam_data():
         SELECT COUNT(DISTINCT exam_id) AS unpublished_count FROM exam_stats_mv WHERE is_published  = false;
     """
     examination_date_query =  """
-        SELECT DISTINCT exam_id, exam_name, examination_date
+        SELECT exam_id, exam_name, examination_date
         FROM exam_stats_mv
         WHERE examination_date != 'No Examination Date';
     """ 
     question_by_exam_query ="""
-        SELECT DISTINCT exam_id, exam_name, is_published, examination_date, question_count
+        SELECT exam_id, exam_name, is_published, examination_date, question_count
         FROM exam_stats_mv
         WHERE question_count > 0
         ORDER BY question_count ASC;
@@ -118,9 +118,31 @@ def refresh_course_data():
                 cur.execute("""
                 DO $$
                 BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_matviews WHERE matviewname = 'course_subject_topic_question_mv'
-                ) THEN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_matviews WHERE matviewname = 'course_subject_topic_question_mv'
+                    ) THEN
+                        CREATE MATERIALIZED VIEW course_subject_topic_question_mv AS
+                        SELECT DISTINCT
+                            c.id               AS course_id,
+                            c.abbreviation     AS course_abbreviation,
+                            s.id               AS subject_id,
+                            s.name             AS subject_name,
+                            t.id               AS topic_id,
+                            t.name             AS topic_name,
+                            q.id               AS question_id,
+                            q.question_type    AS question_type,
+                            q.name             AS question_name
+
+                        FROM courses c
+                        JOIN course_subject cs ON cs.course_id = c.id
+                        JOIN subjects s ON s.id = cs.subject_id
+                        JOIN topics t ON t.subject_id = s.id
+                        JOIN questions q ON q.topic_id = t.id;
+                    ELSE
+                        REFRESH MATERIALIZED VIEW course_subject_topic_question_mv;
+                    END IF;
+                END
+
                 CREATE MATERIALIZED VIEW course_subject_topic_question_mv AS
                     SELECT DISTINCT
                         c.id               AS course_id,
@@ -163,10 +185,6 @@ def refresh_course_data():
                 CREATE INDEX idx_mv_course_subject ON course_subject_topic_question_mv (course_id, subject_id);
                 CREATE INDEX idx_mv_course_topic ON course_subject_topic_question_mv (course_id, topic_id);
                 CREATE INDEX idx_mv_course_question_type ON course_subject_topic_question_mv (course_id, question_type);
-                ELSE
-                    REFRESH MATERIALIZED VIEW course_subject_topic_question_mv;
-                END IF;
-                END
                 $$;
                 """)
             conn.commit()  
@@ -238,28 +256,19 @@ def get_course_data(course_id):
         );
     """
     reused_questions_query ="""
-        SELECT 
-            q.id AS question_id,
-            q.name AS question_name,
+        SELECT q.id,
+            q.name,
             q.question_type,
-            mv.question_level,
-            
-            CASE 
-                WHEN question_status.exam_count IS NULL THEN 'unused'
-                WHEN question_status.exam_count = 1 THEN 'used'
-                ELSE 'reused'
-            END AS status
-
-        FROM questions q
-
+            question_level,
+            COUNT(*) AS reused_count
+        FROM exam_question eq
+        JOIN exams e ON eq.exam_id = e.id
+        JOIN questions q ON eq.question_id = q.id
         JOIN course_subject_topic_question_mv mv ON mv.question_id = q.id
-        LEFT JOIN (
-            SELECT eq.question_id, COUNT(DISTINCT eq.exam_id) AS exam_count
-            FROM exam_question eq
-            GROUP BY eq.question_id
-        ) question_status ON question_status.question_id = q.id
-
-        WHERE mv.course_id = %s;
+        WHERE mv.course_id = 1
+        GROUP BY q.id, q.name, q.question_type, question_level
+        HAVING COUNT(*) >= 2
+        ORDER BY reused_count;
     """
 
     try:
@@ -295,9 +304,27 @@ def get_course_data(course_id):
 
     except Exception as e:
         logger.exception(f"❌ Failed Getting Dashboard Course Data because {e}")
- 
+    
 
 def fetch_single_value(cur, query, params=()):
     cur.execute(query, params or ())
     result = cur.fetchone()
     return result[0] if result else 0
+
+def refresh_dashboard_mv():
+    exam_stats_mv_query = """
+    CREATE MATERIALIZED VIEW exam_stats_mv AS
+SELECT
+    e.id AS exam_id,
+    e.name AS exam_name,
+    c.id AS course_id,
+    c.name AS course_name,
+    c.abbreviation AS course_abbreviation,
+    e.is_published,
+    COALESCE(TO_CHAR(e.examination_date, 'YYYY-MM-DD'), 'No Examination Date') AS examination_date,
+    COALESCE(COUNT(eq.question_id), 0) AS question_count
+FROM exams e
+LEFT JOIN exam_question eq ON eq.exam_id = e.id
+JOIN courses c ON e.course_id = c.id
+GROUP BY e.id, c.id;
+"""
