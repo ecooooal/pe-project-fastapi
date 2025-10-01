@@ -7,6 +7,7 @@ import json
 import app.exam_taking_worker as worker
 from app.utils.redis_client import redis_client
 from app.dashboard import router, refresh_dashboard_job
+from app.reports import router as reports_router
 
 scheduler = BackgroundScheduler()
 process = []
@@ -31,7 +32,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(router, prefix="/api/dashboard")
-
+app.include_router(reports_router, prefix="/api/reports")
 
 @app.get("/")
 async def read_root():

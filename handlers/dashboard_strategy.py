@@ -65,7 +65,7 @@ class GetExamDashboardCache(Strategy):
         
 class GetCourseDashboardCache(Strategy):
     def __init__(self):
-        self.id_context = None  # Add this attribute
+        self.id_context = None  
 
     def do_algorithm(self) -> dict:
         redis_key = CACHE_KEYS['course']

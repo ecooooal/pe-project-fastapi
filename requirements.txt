@@ -9,6 +9,7 @@ bleach==6.2.0
 certifi==2025.8.3
 charset-normalizer==3.4.3
 click==8.2.1
+connectorx==0.4.4
 decorator==5.2.1
 defusedxml==0.7.1
 dnspython==2.7.0
@@ -47,11 +48,13 @@ pexpect==4.9.0
 pickleshare==0.7.5
 pipreqs==0.5.0
 platformdirs==4.3.8
+polars==1.33.1
 prompt_toolkit==3.0.51
 psycopg==3.2.9
 psycopg-binary==3.2.9
 ptyprocess==0.7.0
 pure_eval==0.2.3
+pyarrow==21.0.0
 pydantic==2.11.7
 pydantic_core==2.33.2
 Pygments==2.19.2
