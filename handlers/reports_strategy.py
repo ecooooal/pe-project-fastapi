@@ -23,6 +23,7 @@ class CalculateExamDescriptiveStatistics(Strategy):
                 pl.col('total_score').mode().alias('mode'), 
                 pl.col('total_score').min().alias('min'),
                 pl.col('total_score').max().alias('max'),
+                pl.col('max_score').max().alias('exam_maximum_score')
             )
             .with_columns(
                 (pl.col('max') - pl.col('min')).alias('range')
@@ -39,10 +40,10 @@ class CalculateExamDescriptiveStatistics(Strategy):
                 pl.col('question_points').sum().alias('aggregated_max_score'),
             )
             .with_columns(
-                (pl.col("aggregated_students_score") / pl.col("aggregated_max_score")).round(2).alias("overall_ratio"),
-                (pl.col("aggregated_students_score") / pl.col("aggregated_max_score") * 100).round(1).alias("overall_percentage")
+                (pl.col("aggregated_students_score") / pl.col("aggregated_max_score")).round(2).alias("accuracy"),
+                (pl.col("aggregated_students_score") / pl.col("aggregated_max_score") * 100).round(1).alias("accuracy_percentage")
             )
-            .sort('overall_percentage', descending=True) 
+            .sort('accuracy_percentage', descending=True) 
         )
         list_of_level_dicts: List[Dict] = raw_question_levels_summary_data.to_dicts()
         question_levels_summary_data = {
@@ -50,7 +51,7 @@ class CalculateExamDescriptiveStatistics(Strategy):
             for d in list_of_level_dicts
         }
 
-        subjects_min_max_data = (
+        raw_subjects_min_max_data = (
             df
             .group_by('subject_id')
             .agg(
@@ -60,12 +61,31 @@ class CalculateExamDescriptiveStatistics(Strategy):
                 pl.col('question_points').sum().alias('aggregated_max_score'),
             )
             .with_columns(
-                (pl.col("aggregated_students_score") / pl.col("aggregated_max_score")).round(2).alias("overall_ratio"),
-                (pl.col("aggregated_students_score") / pl.col("aggregated_max_score") * 100).round(1).alias("overall_percentage")
+                (pl.col("aggregated_students_score") / pl.col("aggregated_max_score")).round(2).alias("accuracy"),
+                (pl.col("aggregated_students_score") / pl.col("aggregated_max_score") * 100).round(1).alias("accuracy_percentage")
             )
-            .sort('overall_percentage', descending=True)
+            .sort('accuracy_percentage', descending=True)
+        )
+
+        top_three_max_subjects = (
+            raw_subjects_min_max_data
+            .sort('accuracy', descending=True)  # Sort descending for MAX
+            .head(3)                            # Take the top 3
         ).to_dicts()
 
+        # 3. Get Top 3 Minimum Accuracy Subjects
+        top_three_min_subjects = (
+            raw_subjects_min_max_data
+            .sort('accuracy', descending=False) # Sort ascending for MIN
+            .head(3)                             # Take the top 3 (which are the lowest)
+        ).to_dicts()
+
+
+        subjects_min_max_data = {
+            "top_three_max_subjects": top_three_max_subjects,
+            "top_three_min_subjects": top_three_min_subjects,
+        }
+        
         calculated_data = {
             'exam_summary_data' : exam_summary_data,
             'question_levels_summary_data' : question_levels_summary_data,
@@ -86,18 +106,22 @@ class CalculateExamOverview(Strategy):
         ]
         student_count = df['user_id'].n_unique()
         subjects = df['subject_id'].unique().to_list()
+        subject_count = df['subject_id'].n_unique()
         courses = df['course_abbreviation'].unique().to_list()
-        topics_count = df['topic_id'].n_unique()
+        course_count = df['course_id'].n_unique()
+        topic_count = df['topic_id'].n_unique()
         questions_count = df['question_id'].n_unique()
         question_levels = df['question_level'].unique().to_list()
         
         calculated_data = {
             'exam_overview_data' : {
-                'students_count': student_count,
+                'student_count': student_count,
                 'subjects': subjects,
+                'subject_count' : subject_count,
                 'courses': courses,
-                'topics_count': topics_count,
-                'questions_count': questions_count,
+                'course_count' : course_count,
+                'topic_count': topic_count,
+                'question_count': questions_count,
                 'questions_levels' : sorted(question_levels, key=LEVEL_ORDER.index)
             }
         }
@@ -109,6 +133,7 @@ class CalculateExamHistogramBoxplot(Strategy):
             df
             .group_by('user_id')
             .agg(
+                pl.col('course_abbreviation').unique().first(),
                 pl.col('points_obtained').sum().alias('total_score'),
                 pl.col('question_points').sum().alias('max_score')
             )
@@ -135,7 +160,7 @@ class CalculateExamBySubjectsAndTopics(Strategy):
     
     @staticmethod
     def calculate_normalized_scores(df: pl.DataFrame, group_col: str) -> pl.DataFrame:
-        """Calculates the weighted normalized score grouped by course and a specified column."""
+        # Calculates the weighted normalized score grouped by course and a specified column.
         return (
             df
             .group_by('course_abbreviation', group_col)
@@ -154,7 +179,7 @@ class CalculateExamBySubjectsAndTopics(Strategy):
     
     @staticmethod
     def restructure_report(df_summary: pl.DataFrame, group_col: str) -> Dict[str, Dict[str, float]]:
-        """Converts the Polars summary DataFrame into the nested {course: {group_col: score}} dictionary."""
+        # {course: {group_col: score}} 
         report_list: List[Dict] = df_summary.to_dicts()
         final_report_data = {}
         
@@ -182,10 +207,11 @@ class CalculateExamBYTypeWithLevels(Strategy):
             .sort(['question_type', 'question_level', 'course_abbreviation'])
         )
 
+
         # --- B. Overall QType Aggregation (Only QType Raw Totals) ---
         df_qtype_totals = (
             df_long
-            .group_by('question_type')
+            .group_by('course_abbreviation','question_type')
             .agg(
                 pl.col('raw_score_sum').sum().alias('qtype_total_raw_score'),
                 pl.col('max_score_sum').sum().alias('qtype_total_max_score'),
@@ -195,20 +221,23 @@ class CalculateExamBYTypeWithLevels(Strategy):
         # --- C. Join and Calculate Contribution % ---
         df_combined = (
             df_long
-            .join(df_qtype_totals, on='question_type', how='left')
+            .join(df_qtype_totals, on=['course_abbreviation', 'question_type'], how='left')
             .with_columns(
                 # Normalized Score (Accuracy of this level)
                 pl.when(pl.col('max_score_sum') > 0)
                 .then(pl.col('raw_score_sum') / pl.col('max_score_sum') * 100)
                 .otherwise(pl.lit(0.0))
+                .round(1)
                 .alias('accuracy_percentage'), # Renamed for clarity vs contribution
                 
                 # Contribution Percentage (The new required metric)
                 pl.when(pl.col('qtype_total_raw_score') > 0)
                 .then(pl.col('raw_score_sum') / pl.col('qtype_total_raw_score') * 100)
                 .otherwise(pl.lit(0.0))
+                .round(1)
                 .alias('contribution_percentage')
             )
+            .sort(['question_type', 'course_abbreviation',  'question_level'])
         )
 
         # --- D. Restructure ---
@@ -221,86 +250,107 @@ class CalculateExamBYTypeWithLevels(Strategy):
     
     @staticmethod
     def restructure_for_plotly(df_combined: pl.DataFrame) -> List[Dict[str, Any]]:
-        # Get the list of courses (X-axis order)
-        courses = df_combined['course_abbreviation'].unique().sort().to_list()
-        
+        type_map = {
+            'multiple_choice': 'MCQ',
+            'true_or_false': 'T/F',
+            'identification': 'Identify',
+            'ranking': 'Rank',
+            'matching': 'Match',
+            'coding' : 'Code'
+        }
         # Group by Question Type and collect metrics into lists
         df_grouped_qtype = (
             df_combined
-            .group_by(['question_type'])
+            .group_by(['course_abbreviation'])
             .agg(
                 # Overall QType totals (should be constant across the group)
-                pl.col('qtype_total_raw_score').first().alias('qtype_total_raw_score'),
-                pl.col('qtype_total_max_score').first().alias('qtype_total_max_score'),
+                pl.col('qtype_total_raw_score').implode(),
+                pl.col('qtype_total_max_score').implode(),
                 
                 # Detailed data for the Bloom's breakdown (implode is correct here)
-                pl.col('question_level').implode().alias('levels'),
+                pl.col('question_level').str.to_titlecase().implode().alias('levels'),
                 pl.col('raw_score_sum').implode().alias('raw_scores'),
-                pl.col('accuracy_percentage').implode().alias('accuracy_percentages'), # Renamed
-                pl.col('contribution_percentage').implode().alias('contribution_percentages'), # NEW
-                pl.col('course_abbreviation').implode().alias('courses_list')
+                pl.col('accuracy_percentage').implode().alias('accuracy_percentages'), 
+                pl.col('contribution_percentage').implode().alias('contribution_percentages'), 
+                pl.col('question_type').implode(),
             )
         )
 
-        final_data = []
-        
-        for row in df_grouped_qtype.to_dicts():
-            qtype_name = row['question_type']
-            blooms_data = {}
-            
-            # Overall QType scores
-            qtype_raw = row['qtype_total_raw_score']
-            qtype_max = row['qtype_total_max_score']
-            
+        final_data = {}
+
+        for row in df_grouped_qtype.iter_rows(named=True):
+            course = row['course_abbreviation']
+            question_type_data = {}
+
             # Process the Bloom's Level breakdown
-            for level, raw, acc, cont, course_abbr in zip(
+            for qtype_name, qtype_raw, qtype_max, level, raw, acc, cont in zip(
+                row['question_type'],
+                row['qtype_total_raw_score'],
+                row['qtype_total_max_score'],
                 row['levels'], 
                 row['raw_scores'], 
                 row['accuracy_percentages'], 
-                row['contribution_percentages'], # Use the new contribution list
-                row['courses_list']
+                row['contribution_percentages'],
             ):
-                if level not in blooms_data:
-                    # Initialize lists with 0.0 for all courses
-                    blooms_data[level] = {
-                        'raw': [0.0] * len(courses), 
-                        'accuracy': [0.0] * len(courses), # Accuracy % of this level
-                        'contribution': [0.0] * len(courses) # Contribution % (NEW)
+                if qtype_name not in question_type_data:
+                    question_type_data[qtype_name] = {
+                        'code' : type_map.get(qtype_name),
+                        "qtype_raw_score_sum": qtype_raw,
+                        "qtype_max_score_sum": qtype_max,
+                        'blooms' : {}
                     }
                 
-                course_index = courses.index(course_abbr)
-                
-                # Populate the fixed-length lists at the correct course index
-                blooms_data[level]['raw'][course_index] = raw
-                blooms_data[level]['accuracy'][course_index] = acc
-                blooms_data[level]['contribution'][course_index] = cont # Populate contribution
+                question_type_data[qtype_name]['blooms'][level] = {
+                    'aggregated_raw_score': raw, 
+                    'accuracy_percentage': acc, 
+                    'contribution_percentage': cont ,
 
+                }
             # Construct the final object
-            final_data.append({
-                "name": qtype_name,
-                "raw_score_sum": qtype_raw, # Total points scored for this QType across all courses/levels
-                "max_score_sum": qtype_max, # Total max points for this QType across all courses/levels
-                "blooms": blooms_data
-            })
+            custom_order = [
+                "multiple_choice",
+                "true_or_false",
+                "identification",
+                "ranking",
+                "matching",
+                'coding'
+            ]
+
+            # Reorder using a dictionary comprehension
+            ordered_bscs_data = {key: question_type_data[key] for key in custom_order if key in question_type_data}
+
+            final_data[course] = ordered_bscs_data
                 
         return final_data
+    
 class CalculateExamQuestionHeatStrip(Strategy):
     def calculate(self, df: pl.DataFrame) -> Dict[str, Any]:
         exam_questions_score = (
             df
-            .group_by('question_level', 'question_name',)
+            .group_by('question_id')
             .agg(
-                pl.col('question_type').unique().first(),
+                pl.col('question_name').unique().first(),
+                pl.col('question_level').unique().first().str.to_titlecase(),
+                pl.col('question_type').unique().first().str.replace_all("_", " ").str.to_titlecase(),
                 pl.col('subject_name').unique().first(),
                 pl.col('topic_name').unique().first(),
                 pl.col('points_obtained').mean().alias('average_score'),
-                pl.col('question_points').sum().alias('max_score'),
-            )
-            .with_columns(
-                pl.when(pl.col('max_score') > 0)
-                .then(pl.col('average_score') / pl.col('max_score') * 100)
-                .otherwise(pl.lit(0.0))
-                .alias('accuracy_percentage')
+                pl.col('question_points').sum().alias('sum_of_question_points'),
+                pl.col('question_points').unique().first().alias('maximum_points_attainable'),
+                (pl.col("first_answered_at") - pl.col("first_viewed_at"))
+                    .mean()
+                    .dt.total_seconds()
+                    .alias("average_time_to_answer"),
+                (pl.col("last_answered_at") - pl.col("first_answered_at"))
+                    .mean()
+                    .dt.total_seconds()
+                    .alias("average_time_to_reanswer")
+            ).with_columns(
+                pl.when(pl.col('sum_of_question_points') > 0)
+                    .then(pl.col('average_score') / pl.col('sum_of_question_points') * 100)
+                    .otherwise(pl.lit(0.0))
+                    .round(1)
+                    .alias('accuracy_percentage'),
             )
         ).to_dicts()
         

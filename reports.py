@@ -33,9 +33,9 @@ def initial_load_create_store(exam_id : int):
                     CalculateExamQuestionHeatStrip()
                 ])
     
-    data = context.do_business_logic()
+    exam_performance = context.do_business_logic()
 
-    return data
+    return exam_performance
 
 @router.get("/example/{exam_id}")
 def initial_load_create_store(exam_id : int):
@@ -57,27 +57,46 @@ def initial_load_create_store(exam_id : int):
 
     df_with_max = student_performance_df.join(get_max_attempts, on="user_id", how="left")
 
-    latest_attempts_df = (
+    df = (
         df_with_max
         .filter(pl.col("attempt") == pl.col("latest_attempt"))
         .drop("latest_attempt")
     )
 
-    df = (
-        latest_attempts_df
-        .group_by('question_level', 'question_name',)
+    df_long = (
+        df
+        .group_by('course_abbreviation', 'question_type', 'question_level')
         .agg(
-            pl.col('question_type').unique().first(),
-            pl.col('subject_name').unique().first(),
-            pl.col('topic_name').unique().first(),
-            pl.col('points_obtained').mean().alias('average_score'),
-            pl.col('question_points').sum().alias('max_score'),
-        ).with_columns(
+            pl.col('points_obtained').sum().alias('raw_score_sum'),
+            pl.col('question_points').sum().alias('max_score_sum'),
+        )
+        .sort(['question_type', 'question_level', 'course_abbreviation'])
+    )
+
+    # --- B. Overall QType Aggregation (Only QType Raw Totals) ---
+    df_qtype_totals = (
+        df_long
+        .group_by('question_type')
+        .agg(
+            pl.col('raw_score_sum').sum().alias('qtype_total_raw_score'),
+            pl.col('max_score_sum').sum().alias('qtype_total_max_score'),
+        )
+    )
+    df_combined = (
+        df_long
+        .join(df_qtype_totals, on='question_type', how='left')
+        .with_columns(
+            # Normalized Score (Accuracy of this level)
             pl.when(pl.col('max_score_sum') > 0)
             .then(pl.col('raw_score_sum') / pl.col('max_score_sum') * 100)
             .otherwise(pl.lit(0.0))
-            .alias('accuracy_percentage')
+            .alias('accuracy_percentage'), # Renamed for clarity vs contribution
+            
+            # Contribution Percentage (The new required metric)
+            pl.when(pl.col('qtype_total_raw_score') > 0)
+            .then(pl.col('raw_score_sum') / pl.col('qtype_total_raw_score') * 100)
+            .otherwise(pl.lit(0.0))
+            .alias('contribution_percentage')
         )
     )
-
-    return df.to_dicts()
+    return df_combined.to_dicts()

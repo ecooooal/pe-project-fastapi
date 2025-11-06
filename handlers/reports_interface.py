@@ -25,7 +25,11 @@ class Context():
             report_chunk = strategy.calculate(processed_df)
             self.exam_data.update(report_chunk)
         
-        return self.exam_data
+        exam_performance = {
+            'exam_performance' : self.exam_data,
+            'raw_exam_performance' : processed_df.to_dicts()
+        }
+        return exam_performance
 
     def _get_latest_attempts_df(self) -> pl.DataFrame:
         get_max_attempts = (
