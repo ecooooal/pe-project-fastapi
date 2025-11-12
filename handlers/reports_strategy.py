@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Any, List
 import polars as pl
-from app.handlers.reports_interface import Context, Strategy
+from handlers.reports_interface import Context, Strategy
 
 class CalculateExamDescriptiveStatistics(Strategy):
     def calculate(self, df: pl.DataFrame) -> Dict[str, Any]:

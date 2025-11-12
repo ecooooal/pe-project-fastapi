@@ -2,7 +2,7 @@ import os
 import psycopg
 import json
 from collections import defaultdict
-from app.utils.logger import logger
+from utils.logger import logger
 
 DATABASE_URL = f"postgresql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_DATABASE')}"
 

@@ -1,11 +1,29 @@
 FROM python:3.11-slim AS builder
-WORKDIR /code
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends gcc
+
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim
-WORKDIR /code
-COPY --from=builder /root/.local /root/.local
+
+WORKDIR /app
+
+COPY --from=builder /usr/local /usr/local
+
 COPY . .
-ENV PATH=/root/.local/bin:$PATH
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
+
+RUN useradd -m appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK CMD curl --fail http://localhost:8080/health || exit 1
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers"]

@@ -2,8 +2,8 @@ import os
 import psycopg
 import json
 from datetime import datetime, timezone
-from app.utils.logger import logger
-from app.utils.redis_client import redis_client
+from utils.logger import logger
+from utils.redis_client import redis_client
 
 DATABASE_URL = f"postgresql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_DATABASE')}"
 

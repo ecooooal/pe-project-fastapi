@@ -4,10 +4,10 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import json
-import app.exam_taking_worker as worker
-from app.utils.redis_client import redis_client
-from app.dashboard import router, refresh_dashboard_job
-from app.reports import router as reports_router
+import exam_taking_worker as worker
+from utils.redis_client import redis_client
+from dashboard import router, refresh_dashboard_job
+from reports import router as reports_router
 
 scheduler = BackgroundScheduler()
 process = []

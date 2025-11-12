@@ -4,9 +4,9 @@ import requests
 import json
 import threading
 import os
-from app.utils.logger import logger
-from app.queries.exam_taking_queries import update_answer_points, update_exam_record
-from app.utils.redis_client import redis_client
+from utils.logger import logger
+from queries.exam_taking_queries import update_answer_points, update_exam_record
+from utils.redis_client import redis_client
 
 LOG_SEPARATOR = "-" * 80
 

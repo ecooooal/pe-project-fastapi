@@ -2,11 +2,11 @@ from fastapi import APIRouter
 import polars as pl
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from app.utils.logger import logger
-from app.utils.redis_client import redis_client
-from app.utils.database_config import DATABASE_URL
-from app.handlers.reports_interface import Context
-from app.handlers.reports_strategy import CalculateExamOverview, CalculateExamDescriptiveStatistics, CalculateExamHistogramBoxplot, CalculateExamBySubjectsAndTopics, CalculateExamBYTypeWithLevels, CalculateExamQuestionHeatStrip
+from utils.logger import logger
+from utils.redis_client import redis_client
+from utils.database_config import DATABASE_URL
+from handlers.reports_interface import Context
+from handlers.reports_strategy import CalculateExamOverview, CalculateExamDescriptiveStatistics, CalculateExamHistogramBoxplot, CalculateExamBySubjectsAndTopics, CalculateExamBYTypeWithLevels, CalculateExamQuestionHeatStrip
 from typing import Dict, Any, List
 
 router = APIRouter()

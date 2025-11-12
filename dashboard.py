@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from app.handlers.dashboard_strategy import GetExamDashboardCache, GetCourseDashboardCache
-from app.handlers.dashboard_interface import Context
-from app.utils.logger import logger
-from app.utils.redis_client import redis_client
+from handlers.dashboard_strategy import GetExamDashboardCache, GetCourseDashboardCache
+from handlers.dashboard_interface import Context
+from utils.logger import logger
+from utils.redis_client import redis_client
 
 router = APIRouter()
 TIMER_KEY = 'dashboard:refresh_timer'

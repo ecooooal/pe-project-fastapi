@@ -1,9 +1,9 @@
 import os
 import json
-from app.handlers.dashboard_interface import Context, Strategy
-from app.utils.redis_client import redis_client
-from app.queries.dashboard_queries import get_exam_data, get_course_data, refresh_exam_data, refresh_course_data, get_all_course_id
-from app.utils.logger import logger
+from handlers.dashboard_interface import Context, Strategy
+from utils.redis_client import redis_client
+from queries.dashboard_queries import get_exam_data, get_course_data, refresh_exam_data, refresh_course_data, get_all_course_id
+from utils.logger import logger
 
 DATABASE_URL = f"postgresql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_DATABASE')}"
 
