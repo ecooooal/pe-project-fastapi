@@ -43,4 +43,4 @@ async def read_root():
 async def test_CI():
     # strategy pattern
     # be dynamic to either send code signal or reports
-    return 'Testing CI from github to dockerhub'
+    return 'I changed to test something'
