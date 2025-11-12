@@ -39,8 +39,8 @@ async def read_root():
     return 'yes'
 
 
-@app.get("/sse")
-async def send_signal():
+@app.get("/dockerhub")
+async def test_CI():
     # strategy pattern
     # be dynamic to either send code signal or reports
-    return process
+    return 'Testing CI from github to dockerhub'
