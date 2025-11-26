@@ -2,9 +2,42 @@ from __future__ import annotations
 from typing import Dict, Any, List
 import polars as pl
 from handlers.reports_interface import Context, Strategy
+from utils.database_config import DATABASE_URL
 
 class CalculateExamDescriptiveStatistics(Strategy):
     def calculate(self, df: pl.DataFrame) -> Dict[str, Any]:
+        student_ids_list = df.select('user_id').unique().to_series().to_list()
+
+        get_student_statuses_query = f"""
+            WITH RankedAttempts AS (
+                SELECT
+                    er.attempt, er.status,
+                    sp.user_id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY sp.user_id
+                        ORDER BY er.attempt DESC
+                    ) as rn
+                FROM
+                    exam_records er
+                JOIN
+                    student_papers sp ON sp.id = er.student_paper_id
+                WHERE
+                    sp.user_id = ANY (ARRAY{student_ids_list}) 
+            )
+            SELECT
+                *
+            FROM
+                RankedAttempts
+            WHERE
+                rn = 1
+        """
+        student_statuses_df = pl.read_database_uri(query=get_student_statuses_query, uri=DATABASE_URL)
+        student_statuses_count = student_statuses_df.group_by('status').agg(pl.count().alias("count"))
+        student_statuses_count_formatted = dict(zip(
+            student_statuses_count.get_column("status").to_list(),
+            student_statuses_count.get_column("count").to_list()
+        ))
+
         student_scores = (
             df
             .group_by('user_id')
@@ -87,6 +120,7 @@ class CalculateExamDescriptiveStatistics(Strategy):
         }
         
         calculated_data = {
+            'student_statuses_data' : student_statuses_count_formatted,
             'exam_summary_data' : exam_summary_data,
             'question_levels_summary_data' : question_levels_summary_data,
             'subjects_min_max_data' : subjects_min_max_data

@@ -47,56 +47,35 @@ def initial_load_create_store(exam_id : int):
     """
 
     student_performance_df = pl.read_database_uri(query=get_student_performances_query, uri=DATABASE_URL)
-    get_max_attempts = (
-        student_performance_df
-        .group_by("user_id")
-        .agg(
-            pl.col("attempt").max().alias("latest_attempt")
-        )
-    )
+    student_ids_list = student_performance_df.select('user_id').unique().to_series().to_list()
 
-    df_with_max = student_performance_df.join(get_max_attempts, on="user_id", how="left")
-
-    df = (
-        df_with_max
-        .filter(pl.col("attempt") == pl.col("latest_attempt"))
-        .drop("latest_attempt")
-    )
-
-    df_long = (
-        df
-        .group_by('course_abbreviation', 'question_type', 'question_level')
-        .agg(
-            pl.col('points_obtained').sum().alias('raw_score_sum'),
-            pl.col('question_points').sum().alias('max_score_sum'),
+    get_student_statuses_query = f"""
+        WITH RankedAttempts AS (
+            SELECT
+                er.attempt, er.status,
+                sp.user_id,
+                ROW_NUMBER() OVER (
+                    PARTITION BY sp.user_id
+                    ORDER BY er.attempt DESC
+                ) as rn
+            FROM
+                exam_records er
+            JOIN
+                student_papers sp ON sp.id = er.student_paper_id
+            WHERE
+                sp.user_id = ANY (ARRAY{student_ids_list}) 
         )
-        .sort(['question_type', 'question_level', 'course_abbreviation'])
-    )
-
-    # --- B. Overall QType Aggregation (Only QType Raw Totals) ---
-    df_qtype_totals = (
-        df_long
-        .group_by('question_type')
-        .agg(
-            pl.col('raw_score_sum').sum().alias('qtype_total_raw_score'),
-            pl.col('max_score_sum').sum().alias('qtype_total_max_score'),
-        )
-    )
-    df_combined = (
-        df_long
-        .join(df_qtype_totals, on='question_type', how='left')
-        .with_columns(
-            # Normalized Score (Accuracy of this level)
-            pl.when(pl.col('max_score_sum') > 0)
-            .then(pl.col('raw_score_sum') / pl.col('max_score_sum') * 100)
-            .otherwise(pl.lit(0.0))
-            .alias('accuracy_percentage'), # Renamed for clarity vs contribution
-            
-            # Contribution Percentage (The new required metric)
-            pl.when(pl.col('qtype_total_raw_score') > 0)
-            .then(pl.col('raw_score_sum') / pl.col('qtype_total_raw_score') * 100)
-            .otherwise(pl.lit(0.0))
-            .alias('contribution_percentage')
-        )
-    )
-    return df_combined.to_dicts()
+        SELECT
+            *
+        FROM
+            RankedAttempts
+        WHERE
+            rn = 1
+    """
+    student_statuses_df = pl.read_database_uri(query=get_student_statuses_query, uri=DATABASE_URL)
+    student_pass_count = student_statuses_df.group_by('status').agg(pl.count().alias("count"))
+    final_status_dict = dict(zip(
+        student_pass_count.get_column("status").to_list(),
+        student_pass_count.get_column("count").to_list()
+    ))
+    return final_status_dict
