@@ -11,11 +11,12 @@ class CalculateExamDescriptiveStatistics(Strategy):
         get_student_statuses_query = f"""
             WITH RankedAttempts AS (
                 SELECT
-                    er.attempt, er.status,
+                    er.attempt, 
+                    er.status,
                     sp.user_id,
                     ROW_NUMBER() OVER (
                         PARTITION BY sp.user_id
-                        ORDER BY er.attempt DESC
+                        ORDER BY er.created_at DESC
                     ) as rn
                 FROM
                     exam_records er
@@ -25,7 +26,7 @@ class CalculateExamDescriptiveStatistics(Strategy):
                     sp.user_id = ANY (ARRAY{student_ids_list}) 
             )
             SELECT
-                *
+                user_id, attempt, status
             FROM
                 RankedAttempts
             WHERE
@@ -381,7 +382,7 @@ class CalculateExamQuestionHeatStrip(Strategy):
                     .alias("average_time_to_reanswer")
             ).with_columns(
                 pl.when(pl.col('sum_of_question_points') > 0)
-                    .then(pl.col('average_score') / pl.col('sum_of_question_points') * 100)
+                    .then(pl.col('average_score') / pl.col('maximum_points_attainable') * 100)
                     .otherwise(pl.lit(0.0))
                     .round(1)
                     .alias('accuracy_percentage'),
@@ -390,5 +391,138 @@ class CalculateExamQuestionHeatStrip(Strategy):
         
         calculated_data = {
             'exam_question_heatstrip' : exam_questions_score
+        }
+        return calculated_data
+
+class CalculateIndividualQuestionAnalysis(Strategy):
+    def calculate(self, df: pl.DataFrame) -> Dict[str, Any]:
+        latest_attempts = (
+            df
+            .group_by("user_id")
+            .agg(pl.col("attempt").max().alias("latest_attempt"))
+        )
+        student_total_scores = (
+            df
+            .join(latest_attempts, on=["user_id"])
+            .filter(pl.col("attempt") == pl.col("latest_attempt"))
+            .group_by("user_id", "exam_id")
+            .agg(
+                pl.col("points_obtained").sum().alias("total_score"),
+                pl.col("question_points").sum().alias("max_possible_score")
+            )
+        )
+
+        # Step 3: Determine upper/lower groups
+        quantiles = student_total_scores.select(
+            pl.col("total_score").quantile(0.73).alias("upper_threshold"),
+            pl.col("total_score").quantile(0.27).alias("lower_threshold")
+        )
+
+        upper_threshold = quantiles["upper_threshold"][0]
+        lower_threshold = quantiles["lower_threshold"][0]
+
+        # Step 4: Tag students
+        student_groups = (
+            student_total_scores
+            .with_columns(
+                pl.when(pl.col("total_score") >= upper_threshold)
+                    .then(pl.lit("upper"))
+                    .when(pl.col("total_score") <= lower_threshold)
+                    .then(pl.lit("lower"))
+                    .otherwise(pl.lit("middle"))
+                    .alias("performance_group")
+            )
+        )
+
+        question_stats = (
+            df
+            .join(latest_attempts, on="user_id")
+            .filter(pl.col("attempt") == pl.col("latest_attempt"))
+            .join(student_groups, on=["user_id", "exam_id"])
+            .group_by("question_id")
+            .agg(
+                pl.col("question_name").first(),
+                pl.col("question_type").first(),
+                pl.col("question_level").first(),
+                pl.col("question_points").first(),
+                pl.col("topic_name").first(),
+                pl.col("subject_name").first(),
+
+                pl.len().alias("total_responses"),
+                pl.col("is_answered").sum().alias("answered_count"),
+                (pl.col("is_correct").mean().round(2).alias("difficulty_index")),
+                (pl.col("is_correct").mean() * 100).round(2).alias("percent_correct"),
+                # Discrimination index
+                (
+                    pl.col("is_correct")
+                        .filter(pl.col("performance_group") == "upper")
+                        .mean()
+                    -
+                    pl.col("is_correct")
+                        .filter(pl.col("performance_group") == "lower")
+                        .mean()
+                    ).alias("discrimination_index"),
+                    
+                    # Average points (useful for partial credit)
+                    pl.col("points_obtained").mean().round(2).alias("avg_points_obtained"),
+                    
+                    # Group breakdowns
+                    pl.col("performance_group").filter(pl.col("performance_group") == "upper").len().alias("upper_count"),
+                    pl.col("performance_group").filter(pl.col("performance_group") == "lower").len().alias("lower_count"),
+                    
+                    # Upper group performance
+                    (
+                        pl.col("is_correct")
+                            .filter(pl.col("performance_group") == "upper")
+                            .mean() * 100
+                    ).alias("upper_group_percent_correct"),
+                    
+                    # Lower group performance
+                    (
+                        pl.col("is_correct")
+                            .filter(pl.col("performance_group") == "lower")
+                            .mean() * 100
+                    ).alias("lower_group_percent_correct"),
+                )
+            .sort("discrimination_index", descending=True)
+            .to_dicts()
+        )
+
+        calculated_data = {
+            'individual_question_stats' : question_stats
+        }
+        return calculated_data
+
+class CalculateIndividualStudentPerformance(Strategy):
+    def calculate(self, df: pl.DataFrame) -> Dict[str, Any]:
+        levels = ["remember", "understand", "apply", "analyze", "evaluate", "create"]
+
+        individual_student_performance = (
+            df
+            .group_by("user_id", "attempt")
+            .agg(
+                pl.col("student_name").first(),
+                pl.col("student_email").first(),
+                pl.col("course_abbreviation").first(),  
+                pl.col("points_obtained").sum().alias("total_score"),
+                pl.col("is_correct").sum().alias("correct_count"),
+                (pl.col("is_correct").mean() * 100).round(2).alias("exam_accuracy"),
+                *[
+                    (pl.col("is_correct")
+                        .filter(pl.col("question_level") == lvl)
+                        .mean()
+                        * 100)
+                        .round(2)
+                        .fill_nan(0.0)
+                        .alias(f"{lvl}_accuracy")
+                    for lvl in levels
+                ],
+            )
+            .sort('total_score', descending=True)
+            .to_dicts()
+        )
+
+        calculated_data = {
+            'individual_student_performance' : individual_student_performance
         }
         return calculated_data
