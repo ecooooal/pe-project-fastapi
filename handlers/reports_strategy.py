@@ -412,7 +412,6 @@ class CalculateIndividualQuestionAnalysis(Strategy):
             )
         )
 
-        # Step 3: Determine upper/lower groups
         quantiles = student_total_scores.select(
             pl.col("total_score").quantile(0.73).alias("upper_threshold"),
             pl.col("total_score").quantile(0.27).alias("lower_threshold")
@@ -421,7 +420,6 @@ class CalculateIndividualQuestionAnalysis(Strategy):
         upper_threshold = quantiles["upper_threshold"][0]
         lower_threshold = quantiles["lower_threshold"][0]
 
-        # Step 4: Tag students
         student_groups = (
             student_total_scores
             .with_columns(
@@ -463,7 +461,7 @@ class CalculateIndividualQuestionAnalysis(Strategy):
                         .mean()
                     ).alias("discrimination_index"),
                     
-                    # Average points (useful for partial credit)
+                    # Average points 
                     pl.col("points_obtained").mean().round(2).alias("avg_points_obtained"),
                     
                     # Group breakdowns
